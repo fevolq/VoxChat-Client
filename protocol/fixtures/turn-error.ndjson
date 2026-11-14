@@ -1,0 +1,2 @@
+{"protocol":2,"requestId":"request-error","workspaceId":"workspace-example","sessionId":"session-example","seq":0,"type":"phase","data":{"phase":"tts"}}
+{"protocol":2,"requestId":"request-error","workspaceId":"workspace-example","sessionId":"session-example","seq":1,"type":"error","phase":"tts","error":{"code":"PROVIDER_ERROR","message":"模型服务暂时不可用"}}

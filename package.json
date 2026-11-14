@@ -1,0 +1,33 @@
+{
+  "name": "@fevolq/voxchat-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VoxChat device client for Android, iOS and tablet form factors.",
+  "scripts": {
+    "check": "node tools/check-protocol.mjs",
+    "start": "react-native start",
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22.11.0"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-native": "0.88.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "20.2.0",
+    "@react-native-community/cli-platform-android": "20.2.0",
+    "@react-native-community/cli-platform-ios": "20.2.0",
+    "@react-native/babel-preset": "0.88.1",
+    "@react-native/metro-config": "0.88.1",
+    "@react-native/typescript-config": "0.88.1",
+    "@types/react": "^19.2.0",
+    "typescript": "^6.0.3"
+  }
+}

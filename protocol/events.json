@@ -1,0 +1,16 @@
+{
+  "protocol": 2,
+  "envelope": ["protocol", "requestId", "workspaceId", "sessionId", "seq", "type"],
+  "events": {
+    "phase": { "requiredData": ["phase"], "phases": ["asr", "dsh", "summary", "tts"] },
+    "transcript": { "requiredData": ["text"] },
+    "dsh.event": { "requiredData": [] },
+    "reply": { "requiredData": ["text"] },
+    "speech.text": { "requiredData": ["text"] },
+    "audio.start": { "requiredData": ["format", "mime"] },
+    "audio.chunk": { "requiredData": ["index", "data"] },
+    "audio.end": { "requiredData": ["chunks", "bytes"] },
+    "complete": { "requiredData": ["status"], "statuses": ["audio_delivered"] },
+    "error": { "requiredData": ["error"] }
+  }
+}

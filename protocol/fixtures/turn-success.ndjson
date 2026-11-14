@@ -1,0 +1,12 @@
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":0,"type":"phase","data":{"phase":"asr"}}
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":1,"type":"transcript","data":{"text":"请告诉我执行结果"}}
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":2,"type":"phase","data":{"phase":"dsh"}}
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":3,"type":"dsh.event","data":{"type":"assistant/message","data":{"text":"已完成测试。"}}}
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":4,"type":"reply","data":{"text":"已完成测试。"}}
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":5,"type":"phase","data":{"phase":"summary"}}
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":6,"type":"speech.text","data":{"text":"已完成测试。"}}
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":7,"type":"phase","data":{"phase":"tts"}}
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":8,"type":"audio.start","data":{"format":"wav","mime":"audio/wav"}}
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":9,"type":"audio.chunk","data":{"index":0,"data":"aGVsbG8="}}
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":10,"type":"audio.end","data":{"chunks":1,"bytes":5}}
+{"protocol":2,"requestId":"request-example","workspaceId":"workspace-example","sessionId":"session-example","seq":11,"type":"complete","data":{"status":"audio_delivered"}}
