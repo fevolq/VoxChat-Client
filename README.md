@@ -14,7 +14,6 @@ src/core/          共享网络、协议模型、流解析、语音轮次和平�
 src/screens/       React Native 界面
 android/           Android 原生工程入口（手机和平板共用）
 ios/               iOS 原生工程入口（iPhone 和 iPad 共用）
-tests/             跨平台协议和流程测试说明
 tools/             不依赖平台 SDK 的协议校验工具
 docs/              客户端整体架构和开发约束
 ```
@@ -46,8 +45,19 @@ npm install
 npm run typecheck
 ```
 
-平台工程使用 React Native 的标准 Android/iOS 结构。`android/` 和 `ios/` 的原生工程文件会在配置本机 SDK 后生成或补齐；共享实现放在 `src/core`，不改变 `protocol/` 的公开边界。
+Android 工程使用 React Native 的标准结构，构建时使用 JDK 17、Android SDK API 37 和 Gradle Wrapper；本机 SDK 路径、`local.properties`、签名文件等环境文件不进入仓库。共享实现放在 `src/core`，不改变 `protocol/` 的公开边界。
+
+启动 Android 调试流程：
+
+```powershell
+npm start
+adb reverse tcp:8081 tcp:8081
+cd android
+.\gradlew.bat :app:assembleDebug
+```
+
+iOS 原生工程与 CocoaPods 配置在 macOS 环境下补齐，业务核心和协议目录不按平台复制。
 
 ## 兼容关系
 
-当前客户端协议使用协议字段中的版本号 `2`，对应 DSH 插件仓库中的 `VoxChat/docs/api.md`。协议变更先更新字段定义、兼容规则和 fixtures；只有确实需要并行维护不兼容协议时，才增加版本标识。
+当前客户端协议使用协议字段中的版本号 `2`，对应 DSH 插件仓库中的 `VoxChat/docs/api.md`。协议目录不按版本拆分；协议变更先更新字段定义、兼容规则和 fixtures。

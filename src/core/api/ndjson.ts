@@ -1,5 +1,11 @@
 import type {TurnEnvelope} from './types';
 
+type TextDecoderLike = {
+  decode(input?: Uint8Array, options?: {stream?: boolean}): string;
+};
+
+declare const TextDecoder: new () => TextDecoderLike;
+
 export async function* decodeNdjson(
   chunks: AsyncIterable<Uint8Array | ArrayBuffer | string>,
 ): AsyncGenerator<TurnEnvelope> {

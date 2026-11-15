@@ -73,7 +73,7 @@ export class VoxChatClient {
         'Content-Type': contentType,
         'X-Request-Id': requestId,
       },
-      body: audio as BodyInit,
+      body: audio,
     });
     if (!response.ok) throw await ApiError.fromResponse(response);
     return response;
