@@ -1,20 +1,15 @@
 node_modules/
 dist/
 build/
-.dart_tool/
 .gradle/
-DerivedData/
 android/.gradle/
 android/local.properties
 android/app/build/
 android/captures/
 android/.cxx/
-ios/Pods/
-ios/build/
 *.keystore
 *.jks
 *.iml
-*.xcuserstate
 .DS_Store
 Thumbs.db
 .idea/
@@ -23,3 +18,12 @@ Thumbs.db
 # Local protocol test output
 coverage/
 tmp/
+
+# Local packages and diagnostics
+*.apk
+*.aab
+*.log
+*.hprof
+.env
+.env.*
+!.env.example

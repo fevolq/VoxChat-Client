@@ -4,7 +4,7 @@ import type {
   PairResponse,
   Session,
   Voice,
-  Workspace,
+  Readiness,
 } from './types';
 import {ApiError} from './errors';
 
@@ -33,24 +33,19 @@ export class VoxChatClient {
     return this.json('/me', {method: 'GET'});
   }
 
-  async voices(): Promise<{voiceId: string | null; items: Voice[]}> {
-    return this.json('/voices', {method: 'GET'});
-  }
-
   async selectVoice(voiceId: string | null): Promise<{voiceId: string | null; items: Voice[]}> {
     return this.json('/voice', this.jsonRequest('PUT', {voiceId}));
   }
 
-  async workspaces(): Promise<{workspaceId: string | null; items: Workspace[]}> {
-    return this.json('/workspaces', {method: 'GET'});
-  }
-
-  async selectWorkspace(workspaceId: string): Promise<{workspaceId: string; sessionId: string | null; ready: boolean}> {
+  async selectWorkspace(workspaceId: string): Promise<{workspaceId: string; sessionId: string | null; ready: Readiness}> {
     return this.json('/workspace', this.jsonRequest('PUT', {workspaceId}));
   }
 
   async sessions(): Promise<{workspaceId: string; items: Session[]}> {
     return this.json('/sessions', {method: 'GET'});
+  }
+  async createSession(): Promise<{workspaceId: string; sessionId: string}> {
+    return this.json('/sessions', this.jsonRequest('POST', {}));
   }
 
   async history(sessionId: string, before?: number, limit = 100): Promise<HistoryResponse> {
@@ -63,20 +58,6 @@ export class VoxChatClient {
 
   async selectSession(sessionId: string): Promise<{workspaceId: string; sessionId: string}> {
     return this.json('/session', this.jsonRequest('PUT', {sessionId}));
-  }
-
-  async turn(requestId: string, audio: Uint8Array, contentType: string): Promise<Response> {
-    const response = await this.fetcher(this.url('/turns'), {
-      method: 'POST',
-      headers: {
-        ...this.authHeaders(),
-        'Content-Type': contentType,
-        'X-Request-Id': requestId,
-      },
-      body: audio,
-    });
-    if (!response.ok) throw await ApiError.fromResponse(response);
-    return response;
   }
 
   async cancel(requestId: string): Promise<void> {
@@ -92,12 +73,19 @@ export class VoxChatClient {
   }
 
   private async json<T>(path: string, init: RequestInit, auth = true): Promise<T> {
-    const response = await this.fetcher(this.url(path), {
-      ...init,
-      headers: {...(init.headers ?? {}), ...(auth ? this.authHeaders() : {})},
-    });
-    if (!response.ok) throw await ApiError.fromResponse(response);
-    return response.json() as Promise<T>;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await this.fetcher(this.url(path), {
+        ...init, signal: controller.signal,
+        headers: {...(init.headers ?? {}), ...(auth ? this.authHeaders() : {})},
+      });
+      if (!response.ok) throw await ApiError.fromResponse(response);
+      return await response.json() as T;
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error('连接超时，请检查地址和网络；已提交的操作请先刷新状态');
+      throw error;
+    } finally { clearTimeout(timeout); }
   }
 
   private authHeaders(): Record<string, string> {

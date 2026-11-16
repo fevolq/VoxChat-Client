@@ -1,0 +1,24 @@
+// Optional helper for Windows builds using a subst drive for native build paths.
+// Pass -PmetroProjectRoot=<physical repository path>; ordinary builds do not need this.
+gradle.projectsEvaluated {
+    def app = gradle.rootProject.findProject(':app')
+    if (app == null) return
+    def physicalPath = gradle.startParameter.projectProperties['metroProjectRoot']
+    if (!physicalPath) throw new GradleException('Pass -PmetroProjectRoot=<physical repository path>')
+    def physicalRoot = new File(physicalPath).absoluteFile
+    if (!new File(physicalRoot, 'package.json').isFile()) {
+        throw new GradleException('metroProjectRoot must contain package.json')
+    }
+    def nativeRoot = gradle.rootProject.projectDir.parentFile.toPath().toAbsolutePath().normalize()
+    app.tasks.named('createBundleReleaseJsAndAssets').configure {
+        root.set(physicalRoot)
+        entryFile.set(new File(physicalRoot, 'index.js'))
+        cliFile.set(new File(physicalRoot, 'node_modules/react-native/cli.js'))
+        reactNativeDir.set(new File(physicalRoot, 'node_modules/react-native'))
+        [jsBundleDir, resourcesDir, jsIntermediateSourceMapsDir, jsSourceMapsDir].each { property ->
+            def outputPath = property.get().asFile.toPath().toAbsolutePath().normalize()
+            if (!outputPath.startsWith(nativeRoot)) throw new GradleException('Bundle output must be inside the project')
+            property.set(new File(physicalRoot, nativeRoot.relativize(outputPath).toString()))
+        }
+    }
+}
