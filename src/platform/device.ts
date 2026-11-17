@@ -1,6 +1,7 @@
 import {NativeEventEmitter, NativeModules, PermissionsAndroid, Platform} from 'react-native';
+import type {Selection, TurnOptions} from '../core/api/types';
 
-export interface Credentials {server: string; token: string; deviceId: string}
+export interface Credentials {server: string; token: string; deviceId: string; selection?: Selection}
 interface DeviceNative {
   readCredentials(): Promise<string | null>;
   saveCredentials(value: string | null): Promise<void>;
@@ -8,7 +9,7 @@ interface DeviceNative {
   startRecording(): Promise<void>;
   stopRecording(): Promise<{path: string; durationMs: number}>;
   discardRecording(path: string): void;
-  submitTurn(server: string, token: string, id: string, path: string): Promise<void>;
+  submitTurn(server: string, token: string, id: string, path: string, options: TurnOptions): Promise<void>;
   cancelAll(): void;
   cancel(): Promise<void>;
 }

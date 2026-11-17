@@ -3,8 +3,6 @@ import type {
   HistoryResponse,
   PairResponse,
   Session,
-  Voice,
-  Readiness,
 } from './types';
 import {ApiError} from './errors';
 
@@ -33,43 +31,20 @@ export class VoxChatClient {
     return this.json('/me', {method: 'GET'});
   }
 
-  async selectVoice(voiceId: string | null): Promise<{voiceId: string | null; items: Voice[]}> {
-    return this.json('/voice', this.jsonRequest('PUT', {voiceId}));
+  async sessions(workspaceId: string): Promise<{workspaceId: string; items: Session[]}> {
+    return this.json(`/sessions?${new URLSearchParams({workspaceId}).toString()}`, {method: 'GET'});
   }
 
-  async selectWorkspace(workspaceId: string): Promise<{workspaceId: string; sessionId: string | null; ready: Readiness}> {
-    return this.json('/workspace', this.jsonRequest('PUT', {workspaceId}));
-  }
-
-  async sessions(): Promise<{workspaceId: string; items: Session[]}> {
-    return this.json('/sessions', {method: 'GET'});
-  }
-  async createSession(): Promise<{workspaceId: string; sessionId: string}> {
-    return this.json('/sessions', this.jsonRequest('POST', {}));
-  }
-
-  async history(sessionId: string, before?: number, limit = 100): Promise<HistoryResponse> {
+  async history(workspaceId: string, sessionId: string, before?: number, limit = 100): Promise<HistoryResponse> {
     if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw new Error('历史记录数量应为 1–500');
     if (before !== undefined && (!Number.isInteger(before) || before < 0)) throw new Error('历史记录游标无效');
-    const query = new URLSearchParams({limit: String(limit)});
+    const query = new URLSearchParams({workspaceId, limit: String(limit)});
     if (before !== undefined) query.set('before', String(before));
     return this.json(`/sessions/${encodeURIComponent(sessionId)}/history?${query.toString()}`, {method: 'GET'});
   }
 
-  async selectSession(sessionId: string): Promise<{workspaceId: string; sessionId: string}> {
-    return this.json('/session', this.jsonRequest('PUT', {sessionId}));
-  }
-
   async cancel(requestId: string): Promise<void> {
     await this.json(`/turns/${encodeURIComponent(requestId)}`, {method: 'DELETE'});
-  }
-
-  private jsonRequest(method: string, value: unknown): RequestInit {
-    return {
-      method,
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(value),
-    };
   }
 
   private async json<T>(path: string, init: RequestInit, auth = true): Promise<T> {

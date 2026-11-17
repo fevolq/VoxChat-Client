@@ -36,6 +36,10 @@ async function checkStream(name, expectedTerminal) {
     assert(typeof frame.requestId === 'string' && typeof frame.type === 'string', `${name}:${lineNumber + 1} is missing its envelope`);
     assert(frame.seq === expectedSeq, `${name}:${lineNumber + 1} has a non-contiguous seq`);
     assert(knownTypes.has(frame.type), `${name}:${lineNumber + 1} uses an unknown fixture event type`);
+    const definition = events.events[frame.type];
+    for (const field of definition.requiredData ?? []) assert(frame.data?.[field] !== undefined, `${name}:${lineNumber + 1} is missing data.${field}`);
+    for (const field of definition.requiredEnvelope ?? []) assert(frame[field] !== undefined, `${name}:${lineNumber + 1} is missing ${field}`);
+    for (const field of definition.requiredError ?? []) assert(typeof frame.error?.[field] === 'string', `${name}:${lineNumber + 1} is missing error.${field}`);
     if (frame.type === 'audio.chunk') {
       assert(frame.data?.index === audioIndex, `${name}:${lineNumber + 1} has a non-contiguous audio index`);
       audioIndex++;

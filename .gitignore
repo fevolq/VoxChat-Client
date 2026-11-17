@@ -2,11 +2,9 @@ node_modules/
 dist/
 build/
 .gradle/
-android/.gradle/
 android/local.properties
-android/app/build/
-android/captures/
-android/.cxx/
+captures/
+.cxx/
 *.keystore
 *.jks
 *.iml

@@ -1,6 +1,6 @@
 {
   "name": "@fevolq/voxchat-client",
-  "version": "0.2.6",
+  "version": "0.1.0",
   "private": true,
   "description": "Android voice client for the VoxChat DeepSeek Harness plugin.",
   "scripts": {

@@ -14,6 +14,7 @@ import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.uimanager.ViewManager
 import okhttp3.*
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.asRequestBody
 import org.json.JSONObject
@@ -25,6 +26,7 @@ import java.security.KeyStore
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -41,7 +43,7 @@ class VoiceDeviceModule(private val context: ReactApplicationContext) : ReactCon
   private val io = Executors.newSingleThreadExecutor()
   private val main = Handler(Looper.getMainLooper())
   private val client = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS)
-    .readTimeout(125, TimeUnit.SECONDS).callTimeout(11, TimeUnit.MINUTES)
+    .readTimeout(11, TimeUnit.MINUTES).callTimeout(11, TimeUnit.MINUTES)
     .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false).build()
   @Volatile private var recording = false
   @Volatile private var recorder: AudioRecord? = null
@@ -50,6 +52,7 @@ class VoiceDeviceModule(private val context: ReactApplicationContext) : ReactCon
   @Volatile private var recordingError: String? = null
   @Volatile private var call: Call? = null
   @Volatile private var activeRequest: String? = null
+  private val cancellations = AtomicInteger(0)
   private var player: MediaPlayer? = null
   private var playbackFile: File? = null
   private var playbackPromise: Promise? = null
@@ -118,11 +121,11 @@ class VoiceDeviceModule(private val context: ReactApplicationContext) : ReactCon
     else audioManager.abandonAudioFocus(focusListener)
     focus = null
   }
-  @ReactMethod fun startRecording(promise: Promise) {
+  @Synchronized @ReactMethod fun startRecording(promise: Promise) {
     if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
       promise.reject("MIC_PERMISSION", "请允许麦克风权限"); return
     }
-    if (recordThread != null || activeRequest != null) { promise.reject("BUSY", "当前语音任务尚未结束"); return }
+    if (recordThread != null || activeRequest != null || cancellations.get() > 0) { promise.reject("BUSY", "当前语音任务尚未结束"); return }
     try {
       acquireFocus()
       val size = maxOf(3200, AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT))
@@ -160,7 +163,9 @@ class VoiceDeviceModule(private val context: ReactApplicationContext) : ReactCon
       }, "VoxChat-recorder").also { it.start() }
       promise.resolve(null)
     } catch (e: Exception) {
-      recording = false; recorder?.release(); recorder = null; releaseFocus(); promise.reject("RECORDING", e.message, e)
+      recording = false; recorder?.release(); recorder = null
+      recordingFile?.delete(); recordingFile = null
+      releaseFocus(); promise.reject("RECORDING", e.message, e)
     }
   }
   @ReactMethod fun stopRecording(promise: Promise) {
@@ -181,26 +186,39 @@ class VoiceDeviceModule(private val context: ReactApplicationContext) : ReactCon
     put("RIFF".toByteArray()); putInt(bytes + 36); put("WAVEfmt ".toByteArray()); putInt(16); putShort(1); putShort(1)
     putInt(rate); putInt(rate * 2); putShort(2); putShort(16); put("data".toByteArray()); putInt(bytes)
   }.array()
-  @ReactMethod fun submitTurn(origin: String, token: String, id: String, path: String, promise: Promise) {
-    if (activeRequest != null) { promise.reject("BUSY", "当前请求尚未结束"); return }
+  @Synchronized @ReactMethod fun submitTurn(origin: String, token: String, id: String, path: String, options: ReadableMap, promise: Promise) {
+    if (activeRequest != null || recordThread != null || cancellations.get() > 0) { promise.reject("BUSY", "当前语音任务尚未结束"); return }
+    val workspaceId = options.getString("workspaceId")
+    val sessionId = (if (options.hasKey("sessionId")) options.getString("sessionId") else null)?.takeUnless { it.isBlank() }
+    val voiceId = (if (options.hasKey("voiceId")) options.getString("voiceId") else null)?.takeUnless { it.isBlank() }
     activeRequest = id
     io.execute {
       val input = checkedFile(path)
       var output: File? = null
+      var failureCode = "TURN_FAILED"
       try {
         check(input != null && input.exists()) { "录音文件已失效" }
         check(input.length() in 45..(25L * 1024 * 1024)) { "录音为空或过大" }
-        val request = Request.Builder().url("${origin.trimEnd('/')}/voxchat/api/turns")
+        check(!workspaceId.isNullOrBlank()) { "请先选择工作区" }
+        val url = "${origin.trimEnd('/')}/voxchat/api/turns".toHttpUrl().newBuilder()
+          .addQueryParameter("workspaceId", workspaceId)
+          .apply {
+            if (!sessionId.isNullOrBlank()) addQueryParameter("sessionId", sessionId)
+            if (!voiceId.isNullOrBlank()) addQueryParameter("voiceId", voiceId)
+          }.build()
+        val request = Request.Builder().url(url)
           .header("Authorization", "Bearer $token").header("X-Request-Id", id)
           .post(input.asRequestBody("audio/wav".toMediaType())).build()
         val currentCall = client.newCall(request); call = currentCall
         check(activeRequest == id) { "请求已取消" }
         var seq = 0; var index = 0; var audioBytes = 0L; var format = ""; var ended = false; var complete = false
+        var resolvedSessionId = sessionId
         currentCall.execute().use { response ->
           if (!response.isSuccessful) {
             val body = response.peekBody(4096).string()
-            val message = try { JSONObject(body).getJSONObject("error").getString("message") } catch (_: Exception) { "请求失败（HTTP ${response.code}）" }
-            if (response.code == 401) emit("unauthorized", message, id)
+            val details = try { JSONObject(body).getJSONObject("error") } catch (_: Exception) { null }
+            failureCode = if (response.code == 401) "UNAUTHORIZED" else details?.optString("code")?.takeIf { it.isNotBlank() } ?: "TURN_FAILED"
+            val message = details?.optString("message")?.takeIf { it.isNotBlank() } ?: "请求失败（HTTP ${response.code}）"
             error(message)
           }
           val source = response.body?.source() ?: error("响应为空")
@@ -212,8 +230,19 @@ class VoiceDeviceModule(private val context: ReactApplicationContext) : ReactCon
             val frame = JSONObject(line)
             check(frame.optInt("protocol") == 2 && frame.optString("requestId") == id && frame.getInt("seq") == seq++) { "语音响应协议或序号不匹配" }
             val type = frame.getString("type"); val data = frame.optJSONObject("data")
+            if (type != "error") {
+              check(frame.optString("workspaceId") == workspaceId) { "服务端返回的工作区与本轮选择不匹配" }
+              val returnedSessionId = frame.opt("sessionId") as? String
+              check(returnedSessionId != null && returnedSessionId.matches(Regex("[a-zA-Z0-9_-]{1,128}")) && returnedSessionId !in listOf("null", "undefined")) { "服务端未返回有效会话 ID" }
+              if (resolvedSessionId == null) resolvedSessionId = returnedSessionId
+              check(returnedSessionId == resolvedSessionId) { "服务端返回的会话与本轮选择不匹配" }
+            }
             when (type) {
-              "error" -> error(frame.optJSONObject("error")?.optString("message") ?: "语音请求失败")
+              "error" -> {
+                val details = frame.getJSONObject("error")
+                failureCode = details.getString("code")
+                error(details.getString("message"))
+              }
               "audio.start" -> {
                 check(output == null) { "重复音频头" }; format = data!!.getString("format")
                 check(format in listOf("mp3", "aac", "opus", "flac", "wav", "pcm")) { "不支持的音频格式" }
@@ -244,19 +273,29 @@ class VoiceDeviceModule(private val context: ReactApplicationContext) : ReactCon
         }
       } catch (e: Exception) {
         output?.delete(); if (activeRequest == id) activeRequest = null
-        promise.reject("TURN_FAILED", e.message ?: "连接失败，请检查网络", e)
+        promise.reject(failureCode, e.message ?: "连接失败，请检查网络", e)
       } finally { input?.delete(); call = null }
     }
   }
   private fun play(file: File, id: String, promise: Promise) {
     try {
       playbackFile = file; playbackPromise = promise; acquireFocus()
-      player = MediaPlayer().apply {
+      val nextPlayer = MediaPlayer()
+      player = nextPlayer
+      nextPlayer.apply {
         setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
         setDataSource(file.absolutePath)
-        setOnPreparedListener { emit("playing", "", id); it.start() }
-        setOnCompletionListener { finishPlayback(null) }
-        setOnErrorListener { _, _, _ -> finishPlayback("音频无法播放，请检查插件音频格式"); true }
+        setOnPreparedListener {
+          if (player === it && activeRequest == id) {
+            try { it.start(); emit("playing", "", id) }
+            catch (e: Exception) { finishPlayback(e.message ?: "无法开始播放音频") }
+          }
+        }
+        setOnCompletionListener { if (player === it && activeRequest == id) finishPlayback(null) }
+        setOnErrorListener { failed, _, _ ->
+          if (player === failed && activeRequest == id) finishPlayback("音频无法播放，请检查插件音频格式")
+          true
+        }
         prepareAsync()
       }
     } catch (e: Exception) { finishPlayback(e.message ?: "播放失败") }
@@ -268,13 +307,22 @@ class VoiceDeviceModule(private val context: ReactApplicationContext) : ReactCon
   }
   @ReactMethod fun cancelAll() { cancelInternal(null) }
   @ReactMethod fun cancel(promise: Promise) { cancelInternal(promise) }
-  private fun cancelInternal(promise: Promise?) {
+  @Synchronized private fun cancelInternal(promise: Promise?) {
+    cancellations.incrementAndGet()
     recording = false; activeRequest = null; call?.cancel()
     main.post {
       finishPlayback("已停止")
       io.execute {
-        recordThread?.join(2000); recordThread = null; recordingFile?.delete(); recordingFile = null; releaseFocus()
-        promise?.resolve(null)
+        var failure: Exception? = null
+        try {
+          recordThread?.join(2000)
+          check(recordThread?.isAlive != true) { "麦克风未能停止，请重试" }
+          recordThread = null; recordingFile?.delete(); recordingFile = null
+        } catch (e: Exception) { failure = e }
+        finally { releaseFocus(); cancellations.decrementAndGet() }
+        if (failure == null) promise?.resolve(null)
+        else if (promise != null) promise.reject("CANCEL_FAILED", failure.message, failure)
+        else emit("interrupted", failure.message ?: "无法停止录音")
       }
     }
   }

@@ -19,8 +19,8 @@ android {
         applicationId "com.fevolq.voxchat"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 8
-        versionName "0.2.6"
+        versionCode 1
+        versionName "0.1.0"
     }
 
     buildTypes {

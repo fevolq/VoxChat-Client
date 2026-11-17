@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {newListeningState, detectSpeech} from '../src/core/turn/listening.ts';
-import {historyRows} from '../src/core/api/presentation.ts';
+import {historyRows, sessionTitle} from '../src/core/api/presentation.ts';
 
 test('continuous listening sends only after sustained speech and 1.2 seconds of silence', () => {
   let state = newListeningState(0);
@@ -13,6 +13,22 @@ test('continuous listening sends only after sustained speech and 1.2 seconds of 
     const next = detectSpeech(state, 0.002, now); state = next.state; assert.equal(next.action, 'wait');
   }
   assert.equal(detectSpeech(state, 0.002, 3800).action, 'send');
+});
+
+test('current DSH titles use the string projection and missing titles stay empty', () => {
+  assert.equal(sessionTitle({sessionId: 's', projections: {values: {title: '当前标题'}}}), '当前标题');
+  assert.equal(sessionTitle({sessionId: 's'}), '');
+  assert.equal(sessionTitle({sessionId: 's', projections: {values: {title: null}}}), '');
+});
+
+test('history uses current user, assistant and tool event fields', () => {
+  assert.deepEqual(historyRows([
+    {seq: 1, type: 'user/message', data: {content: [{type: 'text', text: '问题'}]}},
+    {seq: 2, type: 'assistant/message', data: {message: {content: [{type: 'text', text: '回答'}]}}},
+    {seq: 3, type: 'tool/call', data: {name: 'read_file', callId: 'call-1', arguments: {path: '/a'}}},
+  ]), [
+    {key: '1', role: '你', text: '问题'}, {key: '2', role: '助手', text: '回答'}, {key: '3', role: '工具', text: 'read_file'},
+  ]);
 });
 test('an isolated click or pure silence never becomes a submitted utterance', () => {
   let state = newListeningState(0);

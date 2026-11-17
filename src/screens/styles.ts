@@ -5,6 +5,7 @@ export const styles = StyleSheet.create({
   header: {height: 48, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12},
   nav: {minWidth: 56, height: 44, alignItems: 'center', justifyContent: 'center'},
   connectionLabel: {position: 'absolute', left: 78, right: 78, textAlign: 'center', color: colors.danger, fontSize: 10},
+  connectingLabel: {color: colors.muted},
   assistantStage: {flex: 1, minHeight: 0, paddingHorizontal: 24, alignItems: 'center', overflow: 'hidden'},
   speechArea: {flexShrink: 0, marginTop: 10, width: '100%', alignItems: 'center'},
   speechBubble: {maxWidth: 560, width: '100%', backgroundColor: colors.surface, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 16},
